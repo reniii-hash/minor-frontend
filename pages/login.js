@@ -8,7 +8,9 @@ import "./login.css"
 const Login = () => {
   const [isSignup, setIsSignup] = useState(false)
   const [formData, setFormData] = useState({
+    emailOrUsername: "",
     email: "",
+    username: "",
     password: "",
   })
   const [loading, setLoading] = useState(false)
@@ -18,36 +20,37 @@ const Login = () => {
   const location = useLocation()
   const { login, signup, user } = useAuth()
 
-  // Handle redirect when user changes
   useEffect(() => {
     if (user) {
-      if (user.role === "admin") {
-        navigate("/admin-dashboard", { replace: true })
-      } else {
-        const from = location.state?.from?.pathname || "/"
-        navigate(from, { replace: true })
-      }
+      const redirectPath = user.role === "admin" ? "/admin-dashboard" : location.state?.from?.pathname || "/"
+      navigate(redirectPath, { replace: true })
     }
   }, [user, navigate, location.state])
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({
-      ...prev,
-      [name]: value,
-    }))
+    setFormData({ ...formData, [e.target.name]: e.target.value })
     setError("")
   }
 
   const validateForm = () => {
-    if (!formData.email || !formData.password) {
-      setError("Please fill in all required fields")
-      return false
-    }
-
-    if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
-      setError("Please enter a valid email address")
-      return false
+    if (isSignup) {
+      if (!formData.email || !formData.username || !formData.password) {
+        setError("Please fill in all required fields")
+        return false
+      }
+      if (!/\S+@\S+\.\S+/.test(formData.email)) {
+        setError("Please enter a valid email address")
+        return false
+      }
+      if (!/^[a-zA-Z0-9_]{3,20}$/.test(formData.username)) {
+        setError("Username must be 3-20 characters long and contain only letters, numbers, and underscores")
+        return false
+      }
+    } else {
+      if (!formData.emailOrUsername || !formData.password) {
+        setError("Please fill in all required fields")
+        return false
+      }
     }
 
     if (formData.password.length < 3) {
@@ -61,30 +64,21 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
 
-    if (!validateForm()) {
-      return
-    }
+    if (!validateForm()) return
 
     setLoading(true)
     setError("")
 
     try {
-      let result
-      if (isSignup) {
-        result = await signup(formData.email, formData.password)
-      } else {
-        result = await login(formData.email, formData.password)
-      }
+      const result = isSignup
+        ? await signup(formData.email, formData.username, formData.password)
+        : await login(formData.emailOrUsername, formData.password)
 
-      if (result.success) {
-        // The useEffect will handle the redirect based on user role
-        console.log("Login successful, user role:", result.user?.role)
-      } else {
-        setError(result.error || "Authentication failed")
+      if (!result.success) {
+        setError(result.error)
       }
     } catch (err) {
       setError("An error occurred. Please try again.")
-      console.error("Login error:", err)
     } finally {
       setLoading(false)
     }
@@ -93,16 +87,10 @@ const Login = () => {
   const toggleMode = () => {
     setIsSignup(!isSignup)
     setError("")
-    setFormData({
-      email: "",
-      password: "",
-    })
+    setFormData({ emailOrUsername: "", email: "", username: "", password: "" })
   }
 
-  // Don't render if user is already logged in
-  if (user) {
-    return <div>Redirecting...</div>
-  }
+  if (user) return <div>Redirecting...</div>
 
   return (
     <div className="login">
@@ -114,34 +102,79 @@ const Login = () => {
           {error && <div className="error-message">{error}</div>}
 
           <form className="login-form" onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="email">Email *</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                placeholder="Enter your email"
-                disabled={loading}
-              />
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="password">Password *</label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                required
-                placeholder="Enter your password"
-                disabled={loading}
-                minLength={3}
-              />
-            </div>
+            {isSignup ? (
+              <>
+                <div className="form-group">
+                  <label htmlFor="email">Email *</label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="Enter your email"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="username">Username *</label>
+                  <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    placeholder="Choose a username"
+                    disabled={loading}
+                    required
+                  />
+                  <small className="form-hint">3-20 characters, letters, numbers, and underscores only</small>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="password">Password *</label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Create a password"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label htmlFor="emailOrUsername">Email or Username *</label>
+                  <input
+                    type="text"
+                    id="emailOrUsername"
+                    name="emailOrUsername"
+                    value={formData.emailOrUsername}
+                    onChange={handleInputChange}
+                    placeholder="Enter your email or username"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="password">Password *</label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Enter your password"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+              </>
+            )}
 
             <button type="submit" className="login-btn" disabled={loading}>
               {loading ? "Please wait..." : isSignup ? "Create Account" : "Sign In"}
@@ -163,3 +196,4 @@ const Login = () => {
 }
 
 export default Login
+
