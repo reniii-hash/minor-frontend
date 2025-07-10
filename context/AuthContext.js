@@ -12,24 +12,21 @@ export const useAuth = () => {
   return context
 }
 
-// Mock user database with admin users
-const MOCK_USERS = [
-  // Admin users
-  { id: 1, email: "renila@guardora.com", password: "renila", role: "admin", name: "Renila" },
-  { id: 2, email: "shradha@guardora.com", password: "shradha", role: "admin", name: "Shradha" },
-  { id: 3, email: "simon@guardora.com", password: "simon", role: "admin", name: "Simon" },
-  // Regular users
-  { id: 4, email: "user@guardora.com", password: "user123", role: "user", name: "User" },
-  { id: 5, email: "john@example.com", password: "password123", role: "user", name: "John" },
+// Simple user database
+const USERS = [
+  { id: 1, email: "renila@guardora.com", username: "renila", password: "renila", role: "admin", name: "Renila" },
+  { id: 2, email: "shradha@guardora.com", username: "shradha", password: "shradha", role: "admin", name: "Shradha" },
+  { id: 3, email: "simon@guardora.com", username: "simon", password: "simon", role: "admin", name: "Simon" },
+  { id: 4, email: "user@guardora.com", username: "user", password: "user123", role: "user", name: "User" },
+  { id: 5, email: "john@example.com", username: "john", password: "password123", role: "user", name: "John" },
 ]
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [registeredUsers, setRegisteredUsers] = useState(MOCK_USERS)
+  const [users, setUsers] = useState(USERS)
 
   useEffect(() => {
-    // Check if user is logged in from localStorage
     const savedUser = localStorage.getItem("user")
     if (savedUser) {
       setUser(JSON.parse(savedUser))
@@ -37,74 +34,70 @@ export const AuthProvider = ({ children }) => {
     setLoading(false)
   }, [])
 
-  const login = async (email, password) => {
-    try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+  const login = async (emailOrUsername, password) => {
+    await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate delay
 
-      // Find user in registered users
-      const foundUser = registeredUsers.find(
-        (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password,
-      )
+    const foundUser = users.find(
+      (u) =>
+        (u.email.toLowerCase() === emailOrUsername.toLowerCase() ||
+          u.username.toLowerCase() === emailOrUsername.toLowerCase()) &&
+        u.password === password,
+    )
 
-      if (!foundUser) {
-        return { success: false, error: "Invalid email or password" }
-      }
-
-      const userData = {
-        id: foundUser.id,
-        email: foundUser.email,
-        role: foundUser.role,
-        name: foundUser.name,
-      }
-
-      setUser(userData)
-      localStorage.setItem("user", JSON.stringify(userData))
-      return { success: true, user: userData }
-    } catch (error) {
-      return { success: false, error: "Login failed" }
+    if (!foundUser) {
+      return { success: false, error: "Invalid email/username or password" }
     }
+
+    const userData = {
+      id: foundUser.id,
+      email: foundUser.email,
+      username: foundUser.username,
+      role: foundUser.role,
+      name: foundUser.name,
+    }
+
+    setUser(userData)
+    localStorage.setItem("user", JSON.stringify(userData))
+    return { success: true, user: userData }
   }
 
-  const signup = async (email, password) => {
-    try {
-      // Simulate API call delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+  const signup = async (email, username, password) => {
+    await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate delay
 
-      // Check if user already exists
-      const existingUser = registeredUsers.find((u) => u.email.toLowerCase() === email.toLowerCase())
+    const existingUser = users.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase() || u.username.toLowerCase() === username.toLowerCase(),
+    )
 
-      if (existingUser) {
-        return { success: false, error: "User already exists with this email" }
-      }
-
-      // Create new user - always set role as "user"
-      const newUser = {
-        id: Date.now(),
-        email: email,
-        password: password,
-        role: "user", // Always set as user
-        name: email.split("@")[0],
-      }
-
-      // Add to registered users
-      const updatedUsers = [...registeredUsers, newUser]
-      setRegisteredUsers(updatedUsers)
-
-      // Auto login after signup
-      const userData = {
-        id: newUser.id,
-        email: newUser.email,
-        role: newUser.role,
-        name: newUser.name,
-      }
-
-      setUser(userData)
-      localStorage.setItem("user", JSON.stringify(userData))
-      return { success: true, user: userData }
-    } catch (error) {
-      return { success: false, error: "Signup failed" }
+    if (existingUser) {
+      const errorMsg =
+        existingUser.email.toLowerCase() === email.toLowerCase()
+          ? "User already exists with this email"
+          : "Username is already taken"
+      return { success: false, error: errorMsg }
     }
+
+    const newUser = {
+      id: Date.now(),
+      email,
+      username,
+      password,
+      role: "user",
+      name: username,
+    }
+
+    setUsers([...users, newUser])
+
+    const userData = {
+      id: newUser.id,
+      email: newUser.email,
+      username: newUser.username,
+      role: newUser.role,
+      name: newUser.name,
+    }
+
+    setUser(userData)
+    localStorage.setItem("user", JSON.stringify(userData))
+    return { success: true, user: userData }
   }
 
   const logout = () => {
@@ -112,13 +105,7 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem("user")
   }
 
-  const value = {
-    user,
-    login,
-    signup,
-    logout,
-    loading,
-  }
-
-  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={{ user, login, signup, logout, loading }}>{!loading && children}</AuthContext.Provider>
+  )
 }
