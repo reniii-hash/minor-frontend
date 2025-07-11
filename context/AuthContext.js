@@ -1,115 +1,154 @@
-"use client"
+"use client";
 
-import { createContext, useContext, useState, useEffect } from "react"
+import { createContext, useContext, useState, useEffect } from "react";
 
-const AuthContext = createContext()
+// Create a context for authentication
+const AuthContext = createContext();
 
 export const useAuth = () => {
-  const context = useContext(AuthContext)
+  const context = useContext(AuthContext);
   if (!context) {
-    throw new Error("useAuth must be used within an AuthProvider")
+    throw new Error("useAuth must be used within an AuthProvider");
   }
-  return context
-}
+  return context;
+};
 
-// Simple user database
-const USERS = [
-  { id: 1, email: "renila@guardora.com", username: "renila", password: "renila", role: "admin", name: "Renila" },
-  { id: 2, email: "shradha@guardora.com", username: "shradha", password: "shradha", role: "admin", name: "Shradha" },
-  { id: 3, email: "simon@guardora.com", username: "simon", password: "simon", role: "admin", name: "Simon" },
-  { id: 4, email: "user@guardora.com", username: "user", password: "user123", role: "user", name: "User" },
-  { id: 5, email: "john@example.com", username: "john", password: "password123", role: "user", name: "John" },
-]
-
+// The AuthProvider component that provides the authentication context to the app
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [users, setUsers] = useState(USERS)
+  const [user, setUser] = useState(null); // Holds the authenticated user data
+  const [loading, setLoading] = useState(true); // Loading state to prevent rendering before authentication
 
+  // Load user from localStorage on initial render
   useEffect(() => {
-    const savedUser = localStorage.getItem("user")
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
-    }
-    setLoading(false)
-  }, [])
+    const savedUser = localStorage.getItem("user");
+    const token = localStorage.getItem("token");
 
+    if (savedUser && token) {
+      setUser(JSON.parse(savedUser));
+    }
+    setLoading(false);
+  }, []);
+
+  // Helper method to perform fetch requests with authentication token
+  const fetchWithAuth = async (url, method = "GET", body = null) => {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      throw new Error("No token found");
+    }
+
+    const headers = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+
+    const options = {
+      method,
+      headers,
+    };
+
+    if (body) {
+      options.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, options);
+    if (!response.ok) {
+      const error = await response.json();
+      return { success: false, error: error.detail || "Request failed" };
+    }
+    return response.json();
+  };
+
+  // Login method to authenticate user with backend
   const login = async (emailOrUsername, password) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate delay
+    try {
+      const form = new URLSearchParams();
+      form.append("username", emailOrUsername);
+      form.append("password", password);
 
-    const foundUser = users.find(
-      (u) =>
-        (u.email.toLowerCase() === emailOrUsername.toLowerCase() ||
-          u.username.toLowerCase() === emailOrUsername.toLowerCase()) &&
-        u.password === password,
-    )
+      const res = await fetch("http://localhost:8000/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: form,
+      });
 
-    if (!foundUser) {
-      return { success: false, error: "Invalid email/username or password" }
-    }
+      const data = await res.json();
 
-    const userData = {
-      id: foundUser.id,
-      email: foundUser.email,
-      username: foundUser.username,
-      role: foundUser.role,
-      name: foundUser.name,
-    }
-
-    setUser(userData)
-    localStorage.setItem("user", JSON.stringify(userData))
-    return { success: true, user: userData }
-  }
-
-  const signup = async (email, username, password) => {
-    await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate delay
-
-    // Check if user already exists with provided email or username
-    const existingUser = users.find((u) => {
-      if (email && u.email.toLowerCase() === email.toLowerCase()) return true
-      if (username && u.username.toLowerCase() === username.toLowerCase()) return true
-      return false
-    })
-
-    if (existingUser) {
-      if (email && existingUser.email.toLowerCase() === email.toLowerCase()) {
-        return { success: false, error: "User already exists with this email" }
-      } else {
-        return { success: false, error: "Username is already taken" }
+      if (!res.ok) {
+        return { success: false, error: data.detail || "Login failed" };
       }
+
+      localStorage.setItem("token", data.access_token);
+
+      // 🟡 Fetch user info using token
+      const me = await fetch("http://localhost:8000/user/me", {
+        headers: {
+          Authorization: `Bearer ${data.access_token}`,
+        },
+      });
+
+      const userData = await me.json();
+      if (!me.ok) {
+        return { success: false, error: "Failed to fetch user data" };
+      }
+
+      // Save the user data to localStorage
+      localStorage.setItem("user", JSON.stringify(userData));
+      setUser(userData);
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message || "Login error" };
     }
+  };
 
-    // Create new user - generate missing field if only one provided
-    const newUser = {
-      id: Date.now(),
-      email: email || `${username}@guardora.com`,
-      username: username || email.split("@")[0],
-      password,
-      role: "user",
-      name: username || email.split("@")[0],
+  // Signup method to create a new user and auto-login
+  const signup = async (email, username, password) => {
+    try {
+      const res = await fetch("http://localhost:8000/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, username, password }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        return { success: false, error: data.detail || "Signup failed" };
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message || "Signup error" };
     }
+  };
 
-    setUsers([...users, newUser])
-
-    const userData = {
-      id: newUser.id,
-      email: newUser.email,
-      username: newUser.username,
-      role: newUser.role,
-      name: newUser.name,
-    }
-
-    setUser(userData)
-    localStorage.setItem("user", JSON.stringify(userData))
-    return { success: true, user: userData }
-  }
-
+  // Logout method to clear user data and token
   const logout = () => {
-    setUser(null)
-    localStorage.removeItem("user")
-  }
+    setUser(null);
+    localStorage.removeItem("user");
+    localStorage.removeItem("token");
+  };
 
-  return (
-    <AuthContext.Provider value={{ user, login, signup, logout, loading }}>{!loading && children}</AuthContext.Provider>
-  )
-}
+  // Function to check if user is admin
+  const isAdmin = () => {
+    return user && user.role === "admin";
+  };
+
+  // Provide authentication data to children components
+  const value = {
+    user,
+    login,
+    signup,
+    logout,
+    loading,
+    isAdmin,
+    fetchWithAuth, // Expose the fetchWithAuth method for protected routes
+  };
+
+  return <AuthContext.Provider value={value}>{!loading && children}</AuthContext.Provider>;
+};
