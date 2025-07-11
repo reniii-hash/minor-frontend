@@ -2,13 +2,15 @@
 
 import { useState, useEffect } from "react"
 import { useNavigate, useLocation } from "react-router-dom"
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../context/AuthContext'
 import "./login.css"
 
 const Login = () => {
   const [isSignup, setIsSignup] = useState(false)
   const [formData, setFormData] = useState({
     emailOrUsername: "",
+    email: "",
+    username: "",
     password: "",
   })
   const [loading, setLoading] = useState(false)
@@ -31,27 +33,36 @@ const Login = () => {
   }
 
   const validateForm = () => {
-    if (!formData.emailOrUsername || !formData.password) {
-      setError("Please fill in all required fields")
+    if (isSignup) {
+      // For signup, check if at least one of email or username is provided
+      if (!formData.email && !formData.username) {
+        setError("Please provide either an email or username")
+        return false
+      }
+      if (formData.email && !/\S+@\S+\.\S+/.test(formData.email)) {
+        setError("Please enter a valid email address")
+        return false
+      }
+      if (formData.username && !/^[a-zA-Z0-9_]{3,20}$/.test(formData.username)) {
+        setError("Username must be 3-20 characters long and contain only letters, numbers, and underscores")
+        return false
+      }
+    } else {
+      // For login
+      if (!formData.emailOrUsername || !formData.password) {
+        setError("Please fill in all required fields")
+        return false
+      }
+    }
+
+    if (!formData.password) {
+      setError("Password is required")
       return false
     }
 
     if (formData.password.length < 3) {
       setError("Password must be at least 3 characters long")
       return false
-    }
-
-    // For signup, validate email or username format
-    if (isSignup) {
-      const isEmail = /\S+@\S+\.\S+/.test(formData.emailOrUsername)
-      const isValidUsername = /^[a-zA-Z0-9_]{3,20}$/.test(formData.emailOrUsername)
-
-      if (!isEmail && !isValidUsername) {
-        setError(
-          "Please enter a valid email address or username (3-20 characters, letters, numbers, and underscores only)",
-        )
-        return false
-      }
     }
 
     return true
@@ -67,7 +78,7 @@ const Login = () => {
 
     try {
       const result = isSignup
-        ? await signup(formData.emailOrUsername, formData.password)
+        ? await signup(formData.email, formData.username, formData.password)
         : await login(formData.emailOrUsername, formData.password)
 
       if (!result.success) {
@@ -83,7 +94,7 @@ const Login = () => {
   const toggleMode = () => {
     setIsSignup(!isSignup)
     setError("")
-    setFormData({ emailOrUsername: "", password: "" })
+    setFormData({ emailOrUsername: "", email: "", username: "", password: "" })
   }
 
   if (user) return <div>Redirecting...</div>
@@ -98,38 +109,80 @@ const Login = () => {
           {error && <div className="error-message">{error}</div>}
 
           <form className="login-form" onSubmit={handleSubmit}>
-            <div className="form-group">
-              <label htmlFor="emailOrUsername">{isSignup ? "Email or Username *" : "Email or Username *"}</label>
-              <input
-                type="text"
-                id="emailOrUsername"
-                name="emailOrUsername"
-                value={formData.emailOrUsername}
-                onChange={handleInputChange}
-                placeholder={isSignup ? "Enter email or choose username" : "Enter your email or username"}
-                disabled={loading}
-                required
-              />
-              {isSignup && (
-                <small className="form-hint">
-                  Enter an email address or username (3-20 characters, letters, numbers, and underscores only)
-                </small>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label htmlFor="password">Password *</label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={handleInputChange}
-                placeholder={isSignup ? "Create a password" : "Enter your password"}
-                disabled={loading}
-                required
-              />
-            </div>
+            {isSignup ? (
+              <>
+                <div className="form-group">
+                  <label htmlFor="email">Email (Optional)</label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    placeholder="Enter your email"
+                    disabled={loading}
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="username">Username (Optional)</label>
+                  <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    placeholder="Choose a username"
+                    disabled={loading}
+                  />
+                  <small className="form-hint">
+                    Provide either email or username (or both). Username: 3-20 characters, letters, numbers, and
+                    underscores only
+                  </small>
+                </div>
+                <div className="form-group">
+                  <label htmlFor="password">Password *</label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Create a password"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="form-group">
+                  <label htmlFor="emailOrUsername">Email or Username *</label>
+                  <input
+                    type="text"
+                    id="emailOrUsername"
+                    name="emailOrUsername"
+                    value={formData.emailOrUsername}
+                    onChange={handleInputChange}
+                    placeholder="Enter your email or username"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="password">Password *</label>
+                  <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    value={formData.password}
+                    onChange={handleInputChange}
+                    placeholder="Enter your password"
+                    disabled={loading}
+                    required
+                  />
+                </div>
+              </>
+            )}
 
             <button type="submit" className="login-btn" disabled={loading}>
               {loading ? "Please wait..." : isSignup ? "Create Account" : "Sign In"}
@@ -151,5 +204,3 @@ const Login = () => {
 }
 
 export default Login
-
-
