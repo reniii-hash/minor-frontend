@@ -61,30 +61,32 @@ export const AuthProvider = ({ children }) => {
     return { success: true, user: userData }
   }
 
-  const signup = async (emailOrUsername, password) => {
+  const signup = async (email, username, password) => {
     await new Promise((resolve) => setTimeout(resolve, 1000)) // Simulate delay
 
-    const isEmail = /\S+@\S+\.\S+/.test(emailOrUsername)
-
-    // Check if user already exists
-    const existingUser = users.find(
-      (u) =>
-        u.email.toLowerCase() === emailOrUsername.toLowerCase() ||
-        u.username.toLowerCase() === emailOrUsername.toLowerCase(),
-    )
+    // Check if user already exists with provided email or username
+    const existingUser = users.find((u) => {
+      if (email && u.email.toLowerCase() === email.toLowerCase()) return true
+      if (username && u.username.toLowerCase() === username.toLowerCase()) return true
+      return false
+    })
 
     if (existingUser) {
-      return { success: false, error: "User already exists with this email/username" }
+      if (email && existingUser.email.toLowerCase() === email.toLowerCase()) {
+        return { success: false, error: "User already exists with this email" }
+      } else {
+        return { success: false, error: "Username is already taken" }
+      }
     }
 
-    // Create user with email and username based on input
+    // Create new user - generate missing field if only one provided
     const newUser = {
       id: Date.now(),
-      email: isEmail ? emailOrUsername : `${emailOrUsername}@guardora.com`,
-      username: isEmail ? emailOrUsername.split("@")[0] : emailOrUsername,
+      email: email || `${username}@guardora.com`,
+      username: username || email.split("@")[0],
       password,
       role: "user",
-      name: isEmail ? emailOrUsername.split("@")[0] : emailOrUsername,
+      name: username || email.split("@")[0],
     }
 
     setUsers([...users, newUser])
